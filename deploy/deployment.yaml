@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-model-viewer
+  namespace: ollama
+  labels:
+    app: ollama-model-viewer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama-model-viewer
+  template:
+    metadata:
+      labels:
+        app: ollama-model-viewer
+    spec:
+      serviceAccountName: ollama-model-viewer-sa
+      containers:
+        - name: ollama-model-viewer
+          image: quay.io/jcollier/ollama-model-viewer:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: app-http
+              protocol: TCP
+        - name: oauth-proxy
+          image: registry.redhat.io/openshift4/ose-oauth-proxy:latest
+          ports:
+            - containerPort: 8443
+              name: proxy-https
+              protocol: TCP
+          args:
+            - --https-address=:8443
+            - --provider=openshift
+            - --openshift-service-account=ollama-model-viewer-sa
+            - --upstream=http://localhost:8080
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret-file=/etc/oauth/cookie-secret/cookie-secret
+          volumeMounts:
+            - name: cookie-secret-volume
+              mountPath: /etc/oauth/cookie-secret
+            - name: proxy-tls
+              mountPath: /etc/tls/private
+      volumes:
+        - name: cookie-secret-volume
+          secret:
+            secretName: ollama-model-viewer-cookie
+        - name: proxy-tls
+          secret:
+            secretName: proxy-tls 
